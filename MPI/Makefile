@@ -1,9 +1,9 @@
-build: homework
-homework: homework.c
-	mpicc -o homework homework.c -lm -Wall
-serial: homework
-	mpirun -np 1 homework imagini.in
-distrib: homework
-	mpirun -np 4 homework imagini.in
+build: main
+main: main.c
+	mpicc -o main main.c -lm -Wall
+serial: main
+	mpirun -np 1 main imagini.in
+distrib: main
+	mpirun -np 4 main imagini.in
 clean:
-	rm -f homework
+	rm -f main
