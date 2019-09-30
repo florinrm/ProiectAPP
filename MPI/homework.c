@@ -168,6 +168,48 @@ void applyFilter (image *in, image *buff, int rank, int proc, float filter[3][3]
     free(output);
 }
 
+void imageProcessing (image* input, image* output, int rank, int processes, float filter[3][3]) {
+    applyFilter(input, output, rank, processes, filter);  
+    if (rank != 0) {
+        for (int j = rank; j < output->height; j += processes) {
+            if (input->type == COLOR) {
+                MPI_Send(output->color_image[j], output->width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
+            } else {
+                MPI_Send(output->gray_image[j], output->width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
+            }
+        }
+    } else {
+        for (int x = 1; x < processes; ++x) {
+            for (int j = x; j < output->height; j += processes) {
+                if (input->type == COLOR) {
+                    MPI_Recv(output->color_image[j], output->width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                } else {
+                    MPI_Recv(output->gray_image[j], output->width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                }
+            }
+        }
+    }
+
+    if (rank == 0) {
+        for (int x = 1; x < processes; ++x) {
+            for (int j = 0; j < output->height; ++j) {
+                if (input->type == COLOR) {
+                    MPI_Send(output->color_image[j], output->width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
+                } else {
+                    MPI_Send(output->gray_image[j], output->width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
+                }
+            }
+        }
+    } else {
+        for (int j = 0; j < output->height; ++j) {
+            if (input->type == COLOR) {
+                MPI_Recv(output->color_image[j], output->width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            } else {
+                MPI_Recv(output->gray_image[j], output->width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+            }
+        }
+    }
+}
 
 int main (int argc, char **argv) {
     int rank, processes;
@@ -180,632 +222,34 @@ int main (int argc, char **argv) {
     readInput(argv[1], &input); 
     for (int i = 3; i < argc; ++i) {
         if (strcmp(argv[i], "smooth") == 0) {
-            applyFilter(&input, &output, rank, processes, smoothMatrix);            
-            if (rank != 0) {
-                for (int j = rank; j < output.height; j += processes) {
-                    if (input.type == COLOR) {
-                        MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    } else {
-                        MPI_Send(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    }
-                }
-            } else {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = x; j < output.height; j += processes) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-                }
-            }
-
-            if (rank == 0) {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        } else {
-                            MPI_Send(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        }
-                    }
-                }
-            } else {
-                for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-            }
-
+            imageProcessing(&input, &output, rank, processes, smoothMatrix);            
             input = output;
-
         } else if (strcmp(argv[i], "sharpen") == 0) {
-            applyFilter(&input, &output, rank, processes, sharpenMatrix); 
-            if (rank != 0) {
-                for (int j = rank; j < output.height; j += processes) {
-                    if (input.type == COLOR) {
-                        MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    } else {
-                        MPI_Send(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    }
-                }
-            } else {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = x; j < output.height; j += processes) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-                }
-            }
-
-            if (rank == 0) {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        } else {
-                            MPI_Send(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        }
-                    }
-                }
-            } else {
-                for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-            }
+            imageProcessing(&input, &output, rank, processes, sharpenMatrix);            
             input = output;
-
         } else if (strcmp(argv[i], "emboss") == 0) {
-            applyFilter(&input, &output, rank, processes, embossMatrix); 
-            if (rank != 0) {
-                for (int j = rank; j < output.height; j += processes) {
-                    if (input.type == COLOR) {
-                        MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    } else {
-                        MPI_Send(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    }
-                }
-            } else {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = x; j < output.height; j += processes) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-                }
-            }
-
-            if (rank == 0) {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        } else {
-                            MPI_Send(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        }
-                    }
-                }
-            } else {
-                for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-            }
+            imageProcessing(&input, &output, rank, processes, embossMatrix);            
             input = output;
-
         } else if (strcmp(argv[i], "mean") == 0) {
-            applyFilter(&input, &output, rank, processes, meanMatrix); 
-            if (rank != 0) {
-                for (int j = rank; j < output.height; j += processes) {
-                    if (input.type == COLOR) {
-                        MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    } else {
-                        MPI_Send(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    }
-                }
-            } else {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = x; j < output.height; j += processes) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-                }
-            }
-
-            if (rank == 0) {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        } else {
-                            MPI_Send(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        }
-                    }
-                }
-            } else {
-                for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-            }
+            imageProcessing(&input, &output, rank, processes, meanMatrix);            
             input = output;
-
         } else if (strcmp(argv[i], "blur") == 0) {
-            applyFilter(&input, &output, rank, processes, blurMatrix); 
-            if (rank != 0) {
-                for (int j = rank; j < output.height; j += processes) {
-                    if (input.type == COLOR) {
-                        MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    } else {
-                        MPI_Send(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    }
-                }
-            } else {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = x; j < output.height; j += processes) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-                }
-            }
-
-            if (rank == 0) {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        } else {
-                            MPI_Send(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        }
-                    }
-                }
-            } else {
-                for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-            }
+            imageProcessing(&input, &output, rank, processes, blurMatrix);            
             input = output;
         } else if (strcmp(argv[i], "bssembssem") == 0) {
             image aux;
 
-            applyFilter(&input, &aux, rank, processes, blurMatrix);
-            if (rank != 0) {
-                for (int j = rank; j < aux.height; j += processes) {
-                    if (input.type == COLOR) {
-                        MPI_Send(aux.color_image[j], aux.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    } else {
-                        MPI_Send(aux.gray_image[j], aux.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    }
-                }
-            } else {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = x; j < aux.height; j += processes) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(aux.color_image[j], aux.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(aux.gray_image[j], aux.width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-                }
-            }
-
-            if (rank == 0) {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = 0; j < aux.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Send(aux.color_image[j], aux.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        } else {
-                            MPI_Send(aux.gray_image[j], aux.width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        }
-                    }
-                }
-            } else {
-                for (int j = 0; j < aux.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(aux.color_image[j], aux.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(aux.gray_image[j], aux.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-            }
-
-            applyFilter(&aux, &output, rank, processes, smoothMatrix);
-            if (rank != 0) {
-                for (int j = rank; j < output.height; j += processes) {
-                    if (input.type == COLOR) {
-                        MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    } else {
-                        MPI_Send(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    }
-                }
-            } else {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = x; j < output.height; j += processes) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-                }
-            }
-
-            if (rank == 0) {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        } else {
-                            MPI_Send(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        }
-                    }
-                }
-            } else {
-                for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-            }
-
-            applyFilter(&output, &aux, rank, processes, sharpenMatrix);
-            if (rank != 0) {
-                for (int j = rank; j < aux.height; j += processes) {
-                    if (input.type == COLOR) {
-                        MPI_Send(aux.color_image[j], aux.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    } else {
-                        MPI_Send(aux.gray_image[j], aux.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    }
-                }
-            } else {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = x; j < aux.height; j += processes) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(aux.color_image[j], aux.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(aux.gray_image[j], aux.width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-                }
-            }
-
-            if (rank == 0) {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = 0; j < aux.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Send(aux.color_image[j], aux.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        } else {
-                            MPI_Send(aux.gray_image[j], aux.width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        }
-                    }
-                }
-            } else {
-                for (int j = 0; j < aux.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(aux.color_image[j], aux.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(aux.gray_image[j], aux.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-            }
-
-            applyFilter(&aux, &output, rank, processes, embossMatrix);
-            if (rank != 0) {
-                for (int j = rank; j < output.height; j += processes) {
-                    if (input.type == COLOR) {
-                        MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    } else {
-                        MPI_Send(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    }
-                }
-            } else {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = x; j < output.height; j += processes) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-                }
-            }
-
-            if (rank == 0) {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        } else {
-                            MPI_Send(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        }
-                    }
-                }
-            } else {
-                for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-            }
-
-            applyFilter(&output, &aux, rank, processes, meanMatrix);
-            if (rank != 0) {
-                for (int j = rank; j < aux.height; j += processes) {
-                    if (input.type == COLOR) {
-                        MPI_Send(aux.color_image[j], aux.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    } else {
-                        MPI_Send(aux.gray_image[j], aux.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    }
-                }
-            } else {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = x; j < aux.height; j += processes) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(aux.color_image[j], aux.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(aux.gray_image[j], aux.width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-                }
-            }
-
-            if (rank == 0) {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = 0; j < aux.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Send(aux.color_image[j], aux.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        } else {
-                            MPI_Send(aux.gray_image[j], aux.width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        }
-                    }
-                }
-            } else {
-                for (int j = 0; j < aux.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(aux.color_image[j], aux.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(aux.gray_image[j], aux.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-            }
-
-            applyFilter(&aux, &output, rank, processes, blurMatrix);
-            if (rank != 0) {
-                for (int j = rank; j < output.height; j += processes) {
-                    if (input.type == COLOR) {
-                        MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    } else {
-                        MPI_Send(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    }
-                }
-            } else {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = x; j < output.height; j += processes) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-                }
-            }
-
-            if (rank == 0) {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        } else {
-                            MPI_Send(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        }
-                    }
-                }
-            } else {
-                for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-            }
-
-            applyFilter(&output, &aux, rank, processes, smoothMatrix);
-            if (rank != 0) {
-                for (int j = rank; j < aux.height; j += processes) {
-                    if (input.type == COLOR) {
-                        MPI_Send(aux.color_image[j], aux.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    } else {
-                        MPI_Send(aux.gray_image[j], aux.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    }
-                }
-            } else {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = x; j < aux.height; j += processes) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(aux.color_image[j], aux.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(aux.gray_image[j], aux.width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-                }
-            }
-
-            if (rank == 0) {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = 0; j < aux.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Send(aux.color_image[j], aux.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        } else {
-                            MPI_Send(aux.gray_image[j], aux.width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        }
-                    }
-                }
-            } else {
-                for (int j = 0; j < aux.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(aux.color_image[j], aux.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(aux.gray_image[j], aux.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-            }
-
-            applyFilter(&aux, &output, rank, processes, sharpenMatrix);
-            if (rank != 0) {
-                for (int j = rank; j < output.height; j += processes) {
-                    if (input.type == COLOR) {
-                        MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    } else {
-                        MPI_Send(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    }
-                }
-            } else {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = x; j < output.height; j += processes) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-                }
-            }
-
-            if (rank == 0) {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        } else {
-                            MPI_Send(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        }
-                    }
-                }
-            } else {
-                for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-            }
-
-            applyFilter(&output, &aux, rank, processes, embossMatrix);
-            if (rank != 0) {
-                for (int j = rank; j < aux.height; j += processes) {
-                    if (input.type == COLOR) {
-                        MPI_Send(aux.color_image[j], aux.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    } else {
-                        MPI_Send(aux.gray_image[j], aux.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    }
-                }
-            } else {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = x; j < aux.height; j += processes) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(aux.color_image[j], aux.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(aux.gray_image[j], aux.width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-                }
-            }
-
-            if (rank == 0) {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = 0; j < aux.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Send(aux.color_image[j], aux.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        } else {
-                            MPI_Send(aux.gray_image[j], aux.width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        }
-                    }
-                }
-            } else {
-                for (int j = 0; j < aux.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(aux.color_image[j], aux.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(aux.gray_image[j], aux.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-            }
-
-            applyFilter(&aux, &output, rank, processes, meanMatrix);
-            if (rank != 0) {
-                for (int j = rank; j < output.height; j += processes) {
-                    if (input.type == COLOR) {
-                        MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    } else {
-                        MPI_Send(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-                    }
-                }
-            } else {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = x; j < output.height; j += processes) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-                }
-            }
-
-            if (rank == 0) {
-                for (int x = 1; x < processes; ++x) {
-                    for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Send(output.color_image[j], output.width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        } else {
-                            MPI_Send(output.gray_image[j], output.width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                        }
-                    }
-                }
-            } else {
-                for (int j = 0; j < output.height; ++j) {
-                        if (input.type == COLOR) {
-                            MPI_Recv(output.color_image[j], output.width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        } else {
-                            MPI_Recv(output.gray_image[j], output.width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                        }
-                    }
-            }
+            imageProcessing(&input, &aux, rank, processes, blurMatrix);
+            imageProcessing(&aux, &output, rank, processes, smoothMatrix);
+            imageProcessing(&output, &aux, rank, processes, sharpenMatrix);
+            imageProcessing(&aux, &output, rank, processes, embossMatrix);
+            imageProcessing(&output, &aux, rank, processes, meanMatrix);
+            imageProcessing(&aux, &output, rank, processes, blurMatrix);
+            imageProcessing(&output, &aux, rank, processes, smoothMatrix);
+            imageProcessing(&aux, &output, rank, processes, sharpenMatrix);
+            imageProcessing(&output, &aux, rank, processes, embossMatrix);
+            imageProcessing(&aux, &output, rank, processes, meanMatrix);
+            
             input = output;
         }
     }
