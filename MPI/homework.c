@@ -24,6 +24,8 @@ float smoothMatrix[3][3] = {{1.f / 9.f, 1.f / 9.f, 1.f / 9.f},
                             {1.f / 9.f, 1.f / 9.f, 1.f / 9.f}, 
                             {1.f / 9.f, 1.f / 9.f, 1.f / 9.f}};
 
+// typedef enum filter {BLUR, SHARPEN, MEAN, EMBOSS, SMOOTH} filter;
+
 typedef struct {
     unsigned char red, green, blue;
 } rgb; 
@@ -108,7 +110,7 @@ void writeData(const char * fileName, image *img) {
     }
 }
 
-void smoothImage (image *in, image *buff, int rank, int proc) {
+void applyFilter (image *in, image *buff, int rank, int proc, float filter[3][3]) {
     image *output = (image *) malloc (sizeof(image));
     output->type = in->type;
     output->height = in->height;
@@ -125,7 +127,6 @@ void smoothImage (image *in, image *buff, int rank, int proc) {
             output->gray_image[i] = (gray *) malloc (output->width * sizeof(gray));
     }
 
-
     for (int i = rank; i < output->height; i += proc) {
         for (int j = 0; j < output->width; ++j) {
             if (in->type == COLOR) {                
@@ -137,9 +138,9 @@ void smoothImage (image *in, image *buff, int rank, int proc) {
                     float red = 0, green = 0, blue = 0;
                     for (int x = i - 1; x <= i + 1; ++x) {
                         for (int y = j - 1; y <= j + 1; ++y) {
-                            red += in->color_image[x][y].red * smoothMatrix[x - (i - 1)][y - (j - 1)];
-                            green += in->color_image[x][y].green * smoothMatrix[x - (i - 1)][y - (j - 1)];
-                            blue += in->color_image[x][y].blue * smoothMatrix[x - (i - 1)][y - (j - 1)];
+                            red += in->color_image[x][y].red * filter[x - (i - 1)][y - (j - 1)];
+                            green += in->color_image[x][y].green * filter[x - (i - 1)][y - (j - 1)];
+                            blue += in->color_image[x][y].blue * filter[x - (i - 1)][y - (j - 1)];
                         }
                     }
                     output->color_image[i][j].red = (u_char) red;
@@ -155,7 +156,7 @@ void smoothImage (image *in, image *buff, int rank, int proc) {
                     float gray = 0;
                     for (int x = i - 1; x <= i + 1; ++x) {
                         for (int y = j - 1; y <= j + 1; ++y) {
-                            gray += in->gray_image[x][y].gray * smoothMatrix[x - (i - 1)][y - (j - 1)];
+                            gray += in->gray_image[x][y].gray * filter[x - (i - 1)][y - (j - 1)];
                         }
                     }
                     output->gray_image[i][j].gray = (u_char) gray;
@@ -167,235 +168,6 @@ void smoothImage (image *in, image *buff, int rank, int proc) {
     free(output);
 }
 
-void blurImage (image *in, image *buff, int rank, int proc) {
-    image *output = (image *) malloc (sizeof(image));
-    output->type = in->type;
-    output->height = in->height;
-    output->width = in->width;
-    output->max_size = in->max_size;
-
-    if (output->type == COLOR) {
-        output->color_image = (rgb **) malloc (output->height * sizeof(rgb *));
-        for (int i = 0; i < output->height; ++i)
-            output->color_image[i] = (rgb *) malloc (output->width * sizeof(rgb));
-    } else if (output->type == GRAYSCALE) {
-        output->gray_image = (gray **) malloc (output->height * sizeof(gray *));
-        for (int i = 0; i < output->height; ++i)
-            output->gray_image[i] = (gray *) malloc (output->width * sizeof(gray));
-    }
-
-
-    for (int i = rank; i < output->height; i += proc) {
-        for (int j = 0; j < output->width; ++j) {
-            if (in->type == COLOR) {                
-                if (i == 0 || i == output->height - 1 || j == 0 || j == output->width - 1) {
-                    output->color_image[i][j].red = in->color_image[i][j].red;
-                    output->color_image[i][j].green = in->color_image[i][j].green;
-                    output->color_image[i][j].blue = in->color_image[i][j].blue;
-                } else {
-                    float red = 0, green = 0, blue = 0;
-                    for (int x = i - 1; x <= i + 1; ++x) {
-                        for (int y = j - 1; y <= j + 1; ++y) {
-                            red += in->color_image[x][y].red * blurMatrix[x - (i - 1)][y - (j - 1)];
-                            green += in->color_image[x][y].green * blurMatrix[x - (i - 1)][y - (j - 1)];
-                            blue += in->color_image[x][y].blue * blurMatrix[x - (i - 1)][y - (j - 1)];
-                        }
-                    }
-                    output->color_image[i][j].red = (u_char) red;
-                    output->color_image[i][j].green = (u_char) green;
-                    output->color_image[i][j].blue = (u_char) blue;
-            
-                }
-
-            } else if (in->type == GRAYSCALE) {
-                if (i == 0 || i == output->height - 1 || j == 0 || j == output->width - 1) {
-                    output->gray_image[i][j].gray = in->gray_image[i][j].gray;
-                } else {
-                    float gray = 0;
-                    for (int x = i - 1; x <= i + 1; ++x) {
-                        for (int y = j - 1; y <= j + 1; ++y) {
-                            gray += in->gray_image[x][y].gray * blurMatrix[x - (i - 1)][y - (j - 1)];
-                        }
-                    }
-                    output->gray_image[i][j].gray = (u_char) gray;
-                }
-            }
-        }
-    }
-    *buff = *output;
-    free(output);
-}
-
-void sharpenImage (image *in, image *buff, int rank, int proc) {
-    image *output = (image *) malloc (sizeof(image));
-    output->type = in->type;
-    output->height = in->height;
-    output->width = in->width;
-    output->max_size = in->max_size;
-
-    if (output->type == COLOR) {
-        output->color_image = (rgb **) malloc (output->height * sizeof(rgb *));
-        for (int i = 0; i < output->height; ++i)
-            output->color_image[i] = (rgb *) malloc (output->width * sizeof(rgb));
-    } else if (output->type == GRAYSCALE) {
-        output->gray_image = (gray **) malloc (output->height * sizeof(gray *));
-        for (int i = 0; i < output->height; ++i)
-            output->gray_image[i] = (gray *) malloc (output->width * sizeof(gray));
-    }
-
-    for (int i = rank; i < output->height; i += proc) {
-        for (int j = 0; j < output->width; ++j) {
-            if (in->type == COLOR) {                
-                if (i == 0 || i == output->height - 1 || j == 0 || j == output->width - 1) {
-                    output->color_image[i][j].red = in->color_image[i][j].red;
-                    output->color_image[i][j].green = in->color_image[i][j].green;
-                    output->color_image[i][j].blue = in->color_image[i][j].blue;
-                } else {
-                    float red = 0, green = 0, blue = 0;
-                    for (int x = i - 1; x <= i + 1; ++x) {
-                        for (int y = j - 1; y <= j + 1; ++y) {
-                            red += in->color_image[x][y].red * sharpenMatrix[x - (i - 1)][y - (j - 1)];
-                            green += in->color_image[x][y].green * sharpenMatrix[x - (i - 1)][y - (j - 1)];
-                            blue += in->color_image[x][y].blue * sharpenMatrix[x - (i - 1)][y - (j - 1)];
-                        }
-                    }
-                    output->color_image[i][j].red = (u_char) red;
-                    output->color_image[i][j].green = (u_char) green;
-                    output->color_image[i][j].blue = (u_char) blue;
-            
-                }
-            } else if (in->type == GRAYSCALE) {
-                if (i == 0 || i == output->height - 1 || j == 0 || j == output->width - 1) {
-                    output->gray_image[i][j].gray = in->gray_image[i][j].gray;
-                } else {
-                    float gray = 0;
-                    for (int x = i - 1; x <= i + 1; ++x) {
-                        for (int y = j - 1; y <= j + 1; ++y) {
-                            gray += in->gray_image[x][y].gray * sharpenMatrix[x - (i - 1)][y - (j - 1)];
-                        }
-                    }
-                    output->gray_image[i][j].gray = (u_char) gray;
-                }
-            }
-        }
-    }
-    *buff = *output;
-    free(output);
-}
-
-void embossImage (image *in, image *buff, int rank, int proc) {
-    image *output = (image *) malloc (sizeof(image));
-    output->type = in->type;
-    output->height = in->height;
-    output->width = in->width;
-    output->max_size = in->max_size;
-
-    if (output->type == COLOR) {
-        output->color_image = (rgb **) malloc (output->height * sizeof(rgb *));
-        for (int i = 0; i < output->height; ++i)
-            output->color_image[i] = (rgb *) malloc (output->width * sizeof(rgb));
-    } else if (output->type == GRAYSCALE) {
-        output->gray_image = (gray **) malloc (output->height * sizeof(gray *));
-        for (int i = 0; i < output->height; ++i)
-            output->gray_image[i] = (gray *) malloc (output->width * sizeof(gray));
-    }
-
-    for (int i = rank; i < output->height; i += proc) {
-        for (int j = 0; j < output->width; ++j) {
-            if (in->type == COLOR) {                
-                if (i == 0 || i == output->height - 1 || j == 0 || j == output->width - 1) {
-                    output->color_image[i][j].red = in->color_image[i][j].red;
-                    output->color_image[i][j].green = in->color_image[i][j].green;
-                    output->color_image[i][j].blue = in->color_image[i][j].blue;
-                } else {
-                    float red = 0, green = 0, blue = 0;
-                    for (int x = i - 1; x <= i + 1; ++x) {
-                        for (int y = j - 1; y <= j + 1; ++y) {
-                            red += in->color_image[x][y].red * embossMatrix[x - (i - 1)][y - (j - 1)];
-                            green += in->color_image[x][y].green * embossMatrix[x - (i - 1)][y - (j - 1)];
-                            blue += in->color_image[x][y].blue * embossMatrix[x - (i - 1)][y - (j - 1)];
-                        }
-                    }
-                    output->color_image[i][j].red = (u_char) red;
-                    output->color_image[i][j].green = (u_char) green;
-                    output->color_image[i][j].blue = (u_char) blue;
-            
-                }
-            } else if (in->type == GRAYSCALE) {
-                if (i == 0 || i == output->height - 1 || j == 0 || j == output->width - 1) {
-                    output->gray_image[i][j].gray = in->gray_image[i][j].gray;
-                } else {
-                    float gray = 0;
-                    for (int x = i - 1; x <= i + 1; ++x) {
-                        for (int y = j - 1; y <= j + 1; ++y) {
-                            gray += in->gray_image[x][y].gray * embossMatrix[x - (i - 1)][y - (j - 1)];
-                        }
-                    }
-                    output->gray_image[i][j].gray = (u_char) gray;
-                }
-            }
-        }
-    }
-    *buff = *output;
-    free(output);
-}
-
-void meanImage (image *in, image *buff, int rank, int proc) {
-    image *output = (image *) malloc (sizeof(image));
-    output->type = in->type;
-    output->height = in->height;
-    output->width = in->width;
-    output->max_size = in->max_size;
-
-    if (output->type == COLOR) {
-        output->color_image = (rgb **) malloc (output->height * sizeof(rgb *));
-        for (int i = 0; i < output->height; ++i)
-            output->color_image[i] = (rgb *) malloc (output->width * sizeof(rgb));
-    } else if (output->type == GRAYSCALE) {
-        output->gray_image = (gray **) malloc (output->height * sizeof(gray *));
-        for (int i = 0; i < output->height; ++i)
-            output->gray_image[i] = (gray *) malloc (output->width * sizeof(gray));
-    }
-
-    for (int i = rank; i < output->height; i += proc) {
-        for (int j = 0; j < output->width; ++j) {
-            if (in->type == COLOR) {                
-                if (i == 0 || i == output->height - 1 || j == 0 || j == output->width - 1) {
-                    output->color_image[i][j].red = in->color_image[i][j].red;
-                    output->color_image[i][j].green = in->color_image[i][j].green;
-                    output->color_image[i][j].blue = in->color_image[i][j].blue;
-                } else {
-                    float red = 0, green = 0, blue = 0;
-                    for (int x = i - 1; x <= i + 1; ++x) {
-                        for (int y = j - 1; y <= j + 1; ++y) {
-                            red += in->color_image[x][y].red * meanMatrix[x - (i - 1)][y - (j - 1)];
-                            green += in->color_image[x][y].green * meanMatrix[x - (i - 1)][y - (j - 1)];
-                            blue += in->color_image[x][y].blue * meanMatrix[x - (i - 1)][y - (j - 1)];
-                        }
-                    }
-                    output->color_image[i][j].red = (u_char) red;
-                    output->color_image[i][j].green = (u_char) green;
-                    output->color_image[i][j].blue = (u_char) blue;
-            
-                }
-            } else if (in->type == GRAYSCALE) {
-                if (i == 0 || i == output->height - 1 || j == 0 || j == output->width - 1) {
-                    output->gray_image[i][j].gray = in->gray_image[i][j].gray;
-                } else {
-                    float gray = 0;
-                    for (int x = i - 1; x <= i + 1; ++x) {
-                        for (int y = j - 1; y <= j + 1; ++y) {
-                            gray += in->gray_image[x][y].gray * meanMatrix[x - (i - 1)][y - (j - 1)];
-                        }
-                    }
-                    output->gray_image[i][j].gray = (u_char) gray;
-                }
-            }
-        }
-    }
-    *buff = *output;
-    free(output);    
-}
 
 int main (int argc, char **argv) {
     int rank, processes;
@@ -408,7 +180,7 @@ int main (int argc, char **argv) {
     readInput(argv[1], &input); 
     for (int i = 3; i < argc; ++i) {
         if (strcmp(argv[i], "smooth") == 0) {
-            smoothImage(&input, &output, rank, processes);            
+            applyFilter(&input, &output, rank, processes, smoothMatrix);            
             if (rank != 0) {
                 for (int j = rank; j < output.height; j += processes) {
                     if (input.type == COLOR) {
@@ -452,7 +224,7 @@ int main (int argc, char **argv) {
             input = output;
 
         } else if (strcmp(argv[i], "sharpen") == 0) {
-            sharpenImage(&input, &output, rank, processes);
+            applyFilter(&input, &output, rank, processes, sharpenMatrix); 
             if (rank != 0) {
                 for (int j = rank; j < output.height; j += processes) {
                     if (input.type == COLOR) {
@@ -495,7 +267,7 @@ int main (int argc, char **argv) {
             input = output;
 
         } else if (strcmp(argv[i], "emboss") == 0) {
-            embossImage(&input, &output, rank, processes);
+            applyFilter(&input, &output, rank, processes, embossMatrix); 
             if (rank != 0) {
                 for (int j = rank; j < output.height; j += processes) {
                     if (input.type == COLOR) {
@@ -538,7 +310,7 @@ int main (int argc, char **argv) {
             input = output;
 
         } else if (strcmp(argv[i], "mean") == 0) {
-            meanImage(&input, &output, rank, processes);
+            applyFilter(&input, &output, rank, processes, meanMatrix); 
             if (rank != 0) {
                 for (int j = rank; j < output.height; j += processes) {
                     if (input.type == COLOR) {
@@ -581,7 +353,7 @@ int main (int argc, char **argv) {
             input = output;
 
         } else if (strcmp(argv[i], "blur") == 0) {
-            blurImage(&input, &output, rank, processes);
+            applyFilter(&input, &output, rank, processes, blurMatrix); 
             if (rank != 0) {
                 for (int j = rank; j < output.height; j += processes) {
                     if (input.type == COLOR) {
@@ -625,7 +397,7 @@ int main (int argc, char **argv) {
         } else if (strcmp(argv[i], "bssembssem") == 0) {
             image aux;
 
-            blurImage(&input, &aux, rank, processes);
+            applyFilter(&input, &aux, rank, processes, blurMatrix);
             if (rank != 0) {
                 for (int j = rank; j < aux.height; j += processes) {
                     if (input.type == COLOR) {
@@ -666,7 +438,7 @@ int main (int argc, char **argv) {
                     }
             }
 
-            smoothImage(&aux, &output, rank, processes);
+            applyFilter(&aux, &output, rank, processes, smoothMatrix);
             if (rank != 0) {
                 for (int j = rank; j < output.height; j += processes) {
                     if (input.type == COLOR) {
@@ -707,7 +479,7 @@ int main (int argc, char **argv) {
                     }
             }
 
-            sharpenImage(&output, &aux, rank, processes);
+            applyFilter(&output, &aux, rank, processes, sharpenMatrix);
             if (rank != 0) {
                 for (int j = rank; j < aux.height; j += processes) {
                     if (input.type == COLOR) {
@@ -748,7 +520,7 @@ int main (int argc, char **argv) {
                     }
             }
 
-            embossImage(&aux, &output, rank, processes);
+            applyFilter(&aux, &output, rank, processes, embossMatrix);
             if (rank != 0) {
                 for (int j = rank; j < output.height; j += processes) {
                     if (input.type == COLOR) {
@@ -789,7 +561,7 @@ int main (int argc, char **argv) {
                     }
             }
 
-            meanImage(&output, &aux, rank, processes);
+            applyFilter(&output, &aux, rank, processes, meanMatrix);
             if (rank != 0) {
                 for (int j = rank; j < aux.height; j += processes) {
                     if (input.type == COLOR) {
@@ -830,7 +602,7 @@ int main (int argc, char **argv) {
                     }
             }
 
-            blurImage(&aux, &output, rank, processes);
+            applyFilter(&aux, &output, rank, processes, blurMatrix);
             if (rank != 0) {
                 for (int j = rank; j < output.height; j += processes) {
                     if (input.type == COLOR) {
@@ -871,7 +643,7 @@ int main (int argc, char **argv) {
                     }
             }
 
-            smoothImage(&output, &aux, rank, processes);
+            applyFilter(&output, &aux, rank, processes, smoothMatrix);
             if (rank != 0) {
                 for (int j = rank; j < aux.height; j += processes) {
                     if (input.type == COLOR) {
@@ -912,7 +684,7 @@ int main (int argc, char **argv) {
                     }
             }
 
-            sharpenImage(&aux, &output, rank, processes);
+            applyFilter(&aux, &output, rank, processes, sharpenMatrix);
             if (rank != 0) {
                 for (int j = rank; j < output.height; j += processes) {
                     if (input.type == COLOR) {
@@ -953,7 +725,7 @@ int main (int argc, char **argv) {
                     }
             }
 
-            embossImage(&output, &aux, rank, processes);
+            applyFilter(&output, &aux, rank, processes, embossMatrix);
             if (rank != 0) {
                 for (int j = rank; j < aux.height; j += processes) {
                     if (input.type == COLOR) {
@@ -994,7 +766,7 @@ int main (int argc, char **argv) {
                     }
             }
 
-            meanImage(&aux, &output, rank, processes);
+            applyFilter(&aux, &output, rank, processes, meanMatrix);
             if (rank != 0) {
                 for (int j = rank; j < output.height; j += processes) {
                     if (input.type == COLOR) {
