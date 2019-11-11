@@ -2,7 +2,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
-#include <mpi.h>
 
 #define COLOR 6
 #define GRAYSCALE 5
@@ -97,7 +96,7 @@ void writeData(const char * fileName, image *img) {
     }
 }
 
-void applyFilter (image *in, image *buff, int rank, int proc, float filter[3][3]) {
+void applyFilter (image *in, image *buff, float filter[3][3]) {
     image *output = (image *) malloc (sizeof(image));
     output->type = in->type;
     output->height = in->height;
@@ -114,7 +113,7 @@ void applyFilter (image *in, image *buff, int rank, int proc, float filter[3][3]
             output->gray_image[i] = (gray *) malloc (output->width * sizeof(gray));
     }
 
-    for (int i = rank; i < output->height; i += proc) {
+    for (int i = 0; i < output->height; ++i) {
         for (int j = 0; j < output->width; ++j) {
             if (in->type == COLOR) {                
                 if (i == 0 || i == output->height - 1 || j == 0 || j == output->width - 1) {
@@ -155,63 +154,17 @@ void applyFilter (image *in, image *buff, int rank, int proc, float filter[3][3]
     free(output);
 }
 
-void imageProcessing (image* input, image* output, int rank, int processes, float filter[3][3]) {
-    applyFilter(input, output, rank, processes, filter);  
-    if (rank != 0) {
-        for (int j = rank; j < output->height; j += processes) {
-            if (input->type == COLOR) {
-                MPI_Send(output->color_image[j], output->width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-            } else {
-                MPI_Send(output->gray_image[j], output->width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-            }
-        }
-    } else {
-        for (int x = 1; x < processes; ++x) {
-            for (int j = x; j < output->height; j += processes) {
-                if (input->type == COLOR) {
-                    MPI_Recv(output->color_image[j], output->width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                } else {
-                    MPI_Recv(output->gray_image[j], output->width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                }
-            }
-        }
-    }
-
-    if (rank == 0) {
-        for (int x = 1; x < processes; ++x) {
-            for (int j = 0; j < output->height; ++j) {
-                if (input->type == COLOR) {
-                    MPI_Send(output->color_image[j], output->width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                } else {
-                    MPI_Send(output->gray_image[j], output->width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                }
-            }
-        }
-    } else {
-        for (int j = 0; j < output->height; ++j) {
-            if (input->type == COLOR) {
-                MPI_Recv(output->color_image[j], output->width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            } else {
-                MPI_Recv(output->gray_image[j], output->width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            }
-        }
-    }
+void imageProcessing (image* input, image* output, float filter[3][3]) {
+    applyFilter(input, output, filter);  
 }
 
 int main (int argc, char **argv) {
-    int rank, processes;
     image input, output;
-    MPI_Init(&argc,&argv);
-    // id-ul taskului curent
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    // nr de taskuri
-    MPI_Comm_size(MPI_COMM_WORLD, &processes);
     readInput(argv[1], &input); 
-    
-    imageProcessing(&input, &output, rank, processes, blurMatrix);            
+
+    applyFilter(&input, &output, blurMatrix);  
     input = output;
     
-    MPI_Finalize();
     writeData(argv[2], &output);
     return 0;
 }
