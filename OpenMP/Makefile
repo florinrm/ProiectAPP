@@ -1,9 +1,5 @@
 build: main
 main: main.c
-	mpicc -o main main.c -lm -Wall
-serial: main
-	mpirun -np 1 main imagini.in
-distrib: main
-	mpirun -np 4 main imagini.in
+	gcc -o main main.c -lm -Wall -fopenmp
 clean:
 	rm -f main

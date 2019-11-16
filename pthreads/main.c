@@ -1,32 +1,16 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
-#include <math.h>
-#include <unistd.h>
 #include <string.h>
+#include <math.h>
+#include <pthread.h>
 
 #define COLOR 6
 #define GRAYSCALE 5
-#define NO_THREADS 10
+const int noThreads = 8;
 
-float identityMatrix[3][3] = {{0, 0, 0}, {0, 1, 0}, {0, 0, 0}};
 float blurMatrix[3][3] = {{1.f / 16, 2.f / 16, 1.f / 16}, 
                         {2.f / 16, 4.f / 16, 2.f / 16}, 
                         {1.f / 16, 2.f / 16, 1.f / 16}};
-float sharpenMatrix[3][3] = {{0, -2.f / 3, 0}, 
-                            {-2.f / 3, 11.f / 3, -2.f / 3}, 
-                            {0, -2.f / 3, 0}};
-float meanMatrix[3][3] = {{-1.f, -1.f, -1.f}, 
-                        {-1.f, 9.f, -1.f}, 
-                        {-1.f, -1.f, -1.f}};
-float embossMatrix[3][3] = {{0, 1.f, 0}, 
-                            {0, 0, 0}, 
-                            {0, -1.f, 0}};
-float smoothMatrix[3][3] = {{1.f / 9.f, 1.f / 9.f, 1.f / 9.f}, 
-                            {1.f / 9.f, 1.f / 9.f, 1.f / 9.f}, 
-                            {1.f / 9.f, 1.f / 9.f, 1.f / 9.f}};
-
-// typedef enum filter {BLUR, SHARPEN, MEAN, EMBOSS, SMOOTH} filter;
 
 typedef struct {
     unsigned char red, green, blue;
@@ -43,227 +27,160 @@ typedef struct {
     gray **gray_image; // 6 type
 } image;
 
-void readInput(const char * fileName, image *img) {
+image in;
+image out;
+
+void readInput(const char * fileName) {
     
     FILE *input = fopen(fileName, "rb");
     if (input == NULL)
         return;
 
-    image *buff; // reference used for creating the original image
-
-    buff = (image*) malloc (sizeof(image));
     char buffRead[2];
     fscanf(input, "%c %c", &buffRead[0], &buffRead[1]);
-    buff->type = buffRead[1] - '0'; // from char to int
-    fscanf(input, "%d %d\n%d\n", &buff->width, &buff->height, &buff->max_size);
+    in.type = buffRead[1] - '0'; // from char to int
+    fscanf(input, "%d %d\n%d\n", &in.width, &in.height, &in.max_size);
 
-    if (buff->type == COLOR) {
-        buff->color_image = (rgb**) malloc (buff->height * sizeof(rgb*));
-        for (int i = 0; i < buff->height; ++i)
-            buff->color_image[i] = (rgb *) malloc (buff->width * sizeof(rgb));
-        for (int i = 0; i < buff->height; ++i)
-            fread(buff->color_image[i], sizeof(rgb), buff->width, input);
+    if (in.type == COLOR) {
+        in.color_image = (rgb**) malloc (in.height * sizeof(rgb*));
+        for (int i = 0; i < in.height; ++i)
+            in.color_image[i] = (rgb *) malloc (in.width * sizeof(rgb));
+        for (int i = 0; i < in.height; ++i)
+            fread(in.color_image[i], sizeof(rgb), in.width, input);
 
-    } else if (buff->type == GRAYSCALE) {
-        buff->gray_image = (gray**) malloc (buff->height * sizeof(gray*));
-        for (int i = 0; i < buff->height; ++i)
-            buff->gray_image[i] = (gray *) malloc (buff->width * sizeof(gray));
-        for (int i = 0; i < buff->height; ++i)
-            fread(buff->gray_image[i], sizeof(gray), buff->width, input);
+    } else if (in.type == GRAYSCALE) {
+        in.gray_image = (gray**) malloc (in.height * sizeof(gray*));
+        for (int i = 0; i < in.height; ++i)
+            in.gray_image[i] = (gray *) malloc (in.width * sizeof(gray));
+        for (int i = 0; i < in.height; ++i)
+            fread(in.gray_image[i], sizeof(gray), in.width, input);
     }
-
-    *img = *buff;
-    free(buff);
 
     fclose(input);
 }
 
-void writeData(const char * fileName, image *img) {
+void writeData(const char * fileName) {
 
     FILE *output = fopen(fileName, "wb");
     if (output == NULL)
         return;
-    fprintf(output, "P%d\n%d %d\n%d\n", img->type, img->width, img->height, img->max_size);
-    if (img->type == COLOR) {
-        for (int i = 0; i < img->height; ++i) { 
+    fprintf(output, "P%d\n%d %d\n%d\n", out.type, out.width, out.height, out.max_size);
+    if (out.type == COLOR) {
+        for (int i = 0; i < out.height; ++i) { 
             
-            for (int j = 0; j < img->width; ++j) {
-                fwrite(&img->color_image[i][j].red, sizeof(unsigned char), 1, output);
-                fwrite(&img->color_image[i][j].green, sizeof(unsigned char), 1, output);
-                fwrite(&img->color_image[i][j].blue, sizeof(unsigned char), 1, output);
+            for (int j = 0; j < out.width; ++j) {
+                fwrite(&out.color_image[i][j].red, sizeof(unsigned char), 1, output);
+                fwrite(&out.color_image[i][j].green, sizeof(unsigned char), 1, output);
+                fwrite(&out.color_image[i][j].blue, sizeof(unsigned char), 1, output);
             }
         }
-    } else if (img->type == GRAYSCALE) {
-        for (int i = 0; i < img->height; ++i)
-            for (int j = 0; j < img->width; ++j)
-                fwrite(&img->gray_image[i][j], sizeof(unsigned char), 1, output);
+    } else if (out.type == GRAYSCALE) {
+        for (int i = 0; i < out.height; ++i)
+            for (int j = 0; j < out.width; ++j)
+                fwrite(&out.gray_image[i][j], sizeof(unsigned char), 1, output);
     }
 
     fclose(output);
 
-    if (img->type == COLOR) {
-        for (int i = 0; i < img->height; ++i)
-            free(img->color_image[i]);
-        free(img->color_image);
-    } else if (img->type == GRAYSCALE) {
-        for (int i = 0; i < img->height; ++i)
-            free(img->gray_image[i]);
-        free(img->gray_image);
+    if (out.type == COLOR) {
+        for (int i = 0; i < out.height; ++i)
+            free(out.color_image[i]);
+        free(out.color_image);
+    } else if (out.type == GRAYSCALE) {
+        for (int i = 0; i < out.height; ++i)
+            free(out.gray_image[i]);
+        free(out.gray_image);
     }
 }
 
-void applyFilter (image *in, image *buff, int rank, int proc, float filter[3][3]) {
-    image *output = (image *) malloc (sizeof(image));
-    output->type = in->type;
-    output->height = in->height;
-    output->width = in->width;
-    output->max_size = in->max_size;
+void createOutput() {
+    out.type = in.type;
+    out.height = in.height;
+    out.width = in.width;
+    out.max_size = in.max_size;
 
-    if (output->type == COLOR) {
-        output->color_image = (rgb **) malloc (output->height * sizeof(rgb *));
-        for (int i = 0; i < output->height; ++i)
-            output->color_image[i] = (rgb *) malloc (output->width * sizeof(rgb));
-    } else if (output->type == GRAYSCALE) {
-        output->gray_image = (gray **) malloc (output->height * sizeof(gray *));
-        for (int i = 0; i < output->height; ++i)
-            output->gray_image[i] = (gray *) malloc (output->width * sizeof(gray));
+    if (out.type == COLOR) {
+        out.color_image = (rgb **) malloc (out.height * sizeof(rgb *));
+        for (int i = 0; i < out.height; ++i)
+            out.color_image[i] = (rgb *) malloc (out.width * sizeof(rgb));
+    } else if (out.type == GRAYSCALE) {
+        out.gray_image = (gray **) malloc (out.height * sizeof(gray *));
+        for (int i = 0; i < out.height; ++i)
+            out.gray_image[i] = (gray *) malloc (out.width * sizeof(gray));
     }
+}
 
-    for (int i = rank; i < output->height; i += proc) {
-        for (int j = 0; j < output->width; ++j) {
-            if (in->type == COLOR) {                
-                if (i == 0 || i == output->height - 1 || j == 0 || j == output->width - 1) {
-                    output->color_image[i][j].red = in->color_image[i][j].red;
-                    output->color_image[i][j].green = in->color_image[i][j].green;
-                    output->color_image[i][j].blue = in->color_image[i][j].blue;
+int min(int a, int b) {
+    return a <= b ? a : b;
+}
+
+void* threadFunction(void* var) {
+    int id = *(int *) var;
+
+    int start = id * ceil((double) out.height / (double) noThreads);
+	int end = min(((id + 1) * ceil((double) out.height / (double) noThreads)), out.height);
+
+    for (int i = start; i < end; ++i) {
+        for (int j = 0; j < out.width; ++j) {
+            if (in.type == COLOR) {                
+                if (i == 0 || i == out.height - 1 || j == 0 || j == out.width - 1) {
+                    out.color_image[i][j].red = in.color_image[i][j].red;
+                    out.color_image[i][j].green = in.color_image[i][j].green;
+                    out.color_image[i][j].blue = in.color_image[i][j].blue;
                 } else {
                     float red = 0, green = 0, blue = 0;
                     for (int x = i - 1; x <= i + 1; ++x) {
                         for (int y = j - 1; y <= j + 1; ++y) {
-                            red += in->color_image[x][y].red * filter[x - (i - 1)][y - (j - 1)];
-                            green += in->color_image[x][y].green * filter[x - (i - 1)][y - (j - 1)];
-                            blue += in->color_image[x][y].blue * filter[x - (i - 1)][y - (j - 1)];
+                            red += in.color_image[x][y].red * blurMatrix[x - (i - 1)][y - (j - 1)];
+                            green += in.color_image[x][y].green * blurMatrix[x - (i - 1)][y - (j - 1)];
+                            blue += in.color_image[x][y].blue * blurMatrix[x - (i - 1)][y - (j - 1)];
                         }
                     }
-                    output->color_image[i][j].red = (u_char) red;
-                    output->color_image[i][j].green = (u_char) green;
-                    output->color_image[i][j].blue = (u_char) blue;
+                    out.color_image[i][j].red = (u_char) red;
+                    out.color_image[i][j].green = (u_char) green;
+                    out.color_image[i][j].blue = (u_char) blue;
             
                 }
 
-            } else if (in->type == GRAYSCALE) {
-                if (i == 0 || i == output->height - 1 || j == 0 || j == output->width - 1) {
-                    output->gray_image[i][j].gray = in->gray_image[i][j].gray;
+            } else if (in.type == GRAYSCALE) {
+                if (i == 0 || i == out.height - 1 || j == 0 || j == out.width - 1) {
+                    out.gray_image[i][j].gray = in.gray_image[i][j].gray;
                 } else {
                     float gray = 0;
                     for (int x = i - 1; x <= i + 1; ++x) {
                         for (int y = j - 1; y <= j + 1; ++y) {
-                            gray += in->gray_image[x][y].gray * filter[x - (i - 1)][y - (j - 1)];
+                            gray += in.gray_image[x][y].gray * blurMatrix[x - (i - 1)][y - (j - 1)];
                         }
                     }
-                    output->gray_image[i][j].gray = (u_char) gray;
-                }
-            }
-        }
-    }
-    *buff = *output;
-    free(output);
-}
-
-void imageProcessing (image* input, image* output, int rank, int processes, float filter[3][3]) {
-    applyFilter(input, output, rank, processes, filter);  
-    if (rank != 0) {
-        for (int j = rank; j < output->height; j += processes) {
-            if (input->type == COLOR) {
-                MPI_Send(output->color_image[j], output->width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-            } else {
-                MPI_Send(output->gray_image[j], output->width, MPI_CHAR, 0, 0, MPI_COMM_WORLD);
-            }
-        }
-    } else {
-        for (int x = 1; x < processes; ++x) {
-            for (int j = x; j < output->height; j += processes) {
-                if (input->type == COLOR) {
-                    MPI_Recv(output->color_image[j], output->width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-                } else {
-                    MPI_Recv(output->gray_image[j], output->width, MPI_CHAR, x, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                    out.gray_image[i][j].gray = (u_char) gray;
                 }
             }
         }
     }
 
-    if (rank == 0) {
-        for (int x = 1; x < processes; ++x) {
-            for (int j = 0; j < output->height; ++j) {
-                if (input->type == COLOR) {
-                    MPI_Send(output->color_image[j], output->width * 3, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                } else {
-                    MPI_Send(output->gray_image[j], output->width, MPI_CHAR, x, 0, MPI_COMM_WORLD);
-                }
-            }
-        }
-    } else {
-        for (int j = 0; j < output->height; ++j) {
-            if (input->type == COLOR) {
-                MPI_Recv(output->color_image[j], output->width * 3, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            } else {
-                MPI_Recv(output->gray_image[j], output->width, MPI_CHAR, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
-            }
-        }
-    }
+    return NULL;
 }
 
 int main (int argc, char **argv) {
-    int rank, processes;
-    image input, output;
-    MPI_Init(&argc,&argv);
-    // id-ul taskului curent
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    // nr de taskuri
-    MPI_Comm_size(MPI_COMM_WORLD, &processes);
-    readInput(argv[1], &input); 
 
-    pthread_t threads[NO_THREADS];
-    int thread_id[NO_THREADS];
+    readInput(argv[1]); 
+    createOutput();
 
-    for (int i = 0; i < NO_THREADS; ++i) {
-        thread_id[i] = i;
+    pthread_t threads[noThreads];
+    int tid[noThreads];
+
+    for (int i = 0; i < noThreads; ++i) {
+        tid[i] = i;
     }
 
-    for (int i = 3; i < argc; ++i) {
-        if (strcmp(argv[i], "smooth") == 0) {
-            imageProcessing(&input, &output, rank, processes, smoothMatrix);            
-            input = output;
-        } else if (strcmp(argv[i], "sharpen") == 0) {
-            imageProcessing(&input, &output, rank, processes, sharpenMatrix);            
-            input = output;
-        } else if (strcmp(argv[i], "emboss") == 0) {
-            imageProcessing(&input, &output, rank, processes, embossMatrix);            
-            input = output;
-        } else if (strcmp(argv[i], "mean") == 0) {
-            imageProcessing(&input, &output, rank, processes, meanMatrix);            
-            input = output;
-        } else if (strcmp(argv[i], "blur") == 0) {
-            imageProcessing(&input, &output, rank, processes, blurMatrix);            
-            input = output;
-        } else if (strcmp(argv[i], "bssembssem") == 0) {
-            image aux;
-
-            imageProcessing(&input, &aux, rank, processes, blurMatrix);
-            imageProcessing(&aux, &output, rank, processes, smoothMatrix);
-            imageProcessing(&output, &aux, rank, processes, sharpenMatrix);
-            imageProcessing(&aux, &output, rank, processes, embossMatrix);
-            imageProcessing(&output, &aux, rank, processes, meanMatrix);
-            imageProcessing(&aux, &output, rank, processes, blurMatrix);
-            imageProcessing(&output, &aux, rank, processes, smoothMatrix);
-            imageProcessing(&aux, &output, rank, processes, sharpenMatrix);
-            imageProcessing(&output, &aux, rank, processes, embossMatrix);
-            imageProcessing(&aux, &output, rank, processes, meanMatrix);
-            
-            input = output;
-        }
+    for (int i = 0; i < noThreads; i++) {
+        pthread_create(&threads[i], NULL, threadFunction, &tid[i]);
     }
-    MPI_Finalize();
-    writeData(argv[2], &output);
+
+    for (int i = 0; i < noThreads; i++) {
+        pthread_join(threads[i], NULL);
+    }
+
+    writeData(argv[2]);
     return 0;
 }

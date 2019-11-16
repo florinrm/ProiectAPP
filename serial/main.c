@@ -2,13 +2,15 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <pthread.h>
 
 #define COLOR 6
 #define GRAYSCALE 5
+#define NO_THREADS 8
 
-float smoothMatrix[3][3] = {{1.f / 9.f, 1.f / 9.f, 1.f / 9.f}, 
-                            {1.f / 9.f, 1.f / 9.f, 1.f / 9.f}, 
-                            {1.f / 9.f, 1.f / 9.f, 1.f / 9.f}};
+float blurMatrix[3][3] = {{1.f / 16, 2.f / 16, 1.f / 16}, 
+                        {2.f / 16, 4.f / 16, 2.f / 16}, 
+                        {1.f / 16, 2.f / 16, 1.f / 16}};
 
 // typedef enum filter {BLUR, SHARPEN, MEAN, EMBOSS, SMOOTH} filter;
 
@@ -163,7 +165,6 @@ int main (int argc, char **argv) {
     readInput(argv[1], &input); 
 
     applyFilter(&input, &output, blurMatrix);  
-    input = output;
     
     writeData(argv[2], &output);
     return 0;

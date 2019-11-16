@@ -7,9 +7,9 @@
 #define COLOR 6
 #define GRAYSCALE 5
 
-float smoothMatrix[3][3] = {{1.f / 9.f, 1.f / 9.f, 1.f / 9.f}, 
-                            {1.f / 9.f, 1.f / 9.f, 1.f / 9.f}, 
-                            {1.f / 9.f, 1.f / 9.f, 1.f / 9.f}};
+float blurMatrix[3][3] = {{1.f / 16, 2.f / 16, 1.f / 16}, 
+                        {2.f / 16, 4.f / 16, 2.f / 16}, 
+                        {1.f / 16, 2.f / 16, 1.f / 16}};
 
 // typedef enum filter {BLUR, SHARPEN, MEAN, EMBOSS, SMOOTH} filter;
 
