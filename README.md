@@ -11,4 +11,8 @@ Example: `mpirun -np 4 main in/lenna_color.pnm blurred.pnm`
 Example: `./main in/lenna_color.pnm blur.pnm`
 
 ### OpenMP
-Example: `./main in/lenna_color.pnm blur.pnm`
+Example: 
+```bash
+export OMP_NUM_THREADS=8
+./main in/lenna_color.pnm blur.pnm
+```
