@@ -36,15 +36,13 @@ typedef struct {
 } tuple;
 
 image input, output;
-const int no_threads = 8;
+int no_threads;
 
 void readInput(const char * fileName) {
     
     FILE *file = fopen(fileName, "rb");
     if (file == NULL)
         return;
-
-    image *buff; // reference used for creating the original image
 
     char buffRead[2];
     fscanf(file, "%c %c", &buffRead[0], &buffRead[1]);
@@ -151,6 +149,8 @@ void* threadFunction (void* var) {
             }
         }
     }
+
+    return NULL;
 }
 
 void applyFilter (int rank, int proc) {
@@ -233,6 +233,7 @@ void imageProcessing (int rank, int processes) {
 
 int main (int argc, char **argv) {
     int rank, processes;
+    no_threads = atoi(argv[3]);
     MPI_Init(&argc,&argv);
     // id-ul taskului curent
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);

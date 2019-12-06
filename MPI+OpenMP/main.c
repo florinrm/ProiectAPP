@@ -29,7 +29,7 @@ typedef struct {
     gray **gray_image; // 6 type
 } image;
 
-const int noThreads = 8;
+int noThreads;
 
 void readInput(const char * fileName, image *img) {
     
@@ -207,6 +207,7 @@ void imageProcessing (image* input, image* output, int rank, int processes, floa
 
 int main (int argc, char **argv) {
     int rank, processes;
+    noThreads = atoi(argv[3]);
     image input, output;
     MPI_Init(&argc,&argv);
     // id-ul taskului curent

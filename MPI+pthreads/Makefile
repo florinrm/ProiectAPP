@@ -1,9 +1,7 @@
 build: main
 main: main.c
 	mpicc -o main main.c -lm -Wall -lpthread
-serial: main
-	mpirun -np 1 main imagini.in
-distrib: main
-	mpirun -np 4 main imagini.in
+run: main
+	mpirun -np 8 main in/lenna_color.pnm blur.pnm 8
 clean:
 	rm -f main

@@ -6,7 +6,7 @@
 
 #define COLOR 6
 #define GRAYSCALE 5
-const int noThreads = 8;
+int noThreads;
 
 float blurMatrix[3][3] = {{1.f / 16, 2.f / 16, 1.f / 16}, 
                         {2.f / 16, 4.f / 16, 2.f / 16}, 
@@ -163,6 +163,7 @@ void* threadFunction(void* var) {
 
 int main (int argc, char **argv) {
 
+    noThreads = atoi(argv[3]);
     readInput(argv[1]); 
     createOutput();
 

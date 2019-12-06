@@ -160,6 +160,7 @@ void applyFilter () {
 }
 
 int main (int argc, char **argv) {
+    numThreads = atoi(argv[3]);
     readInput(argv[1]); 
     createOutput();
 
